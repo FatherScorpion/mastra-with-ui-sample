@@ -22,9 +22,11 @@ interface WeatherResponse {
 
 export const weatherTool = createTool({
   id: 'get-weather',
-  description: 'Get current weather for a location',
+  description: '緯度・経度から現在の天気を取得する',
   inputSchema: z.object({
-    location: z.string().describe('City name'),
+    latitude: z.number().describe('緯度'),
+    longitude: z.number().describe('経度'),
+    address: z.string().describe('住所テキスト（表示用）'),
   }),
   outputSchema: z.object({
     temperature: z.number(),
@@ -33,23 +35,16 @@ export const weatherTool = createTool({
     windSpeed: z.number(),
     windGust: z.number(),
     conditions: z.string(),
-    location: z.string(),
+    address: z.string(),
+    latitude: z.number(),
+    longitude: z.number(),
   }),
   execute: async ({ context }) => {
-    return await getWeather(context.location);
+    return await getWeather(context.latitude, context.longitude, context.address);
   },
 });
 
-const getWeather = async (location: string) => {
-  const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1`;
-  const geocodingResponse = await fetch(geocodingUrl);
-  const geocodingData = (await geocodingResponse.json()) as GeocodingResponse;
-
-  if (!geocodingData.results?.[0]) {
-    throw new Error(`Location '${location}' not found`);
-  }
-
-  const { latitude, longitude, name } = geocodingData.results[0];
+const getWeather = async (latitude: number, longitude: number, address: string) => {
 
   const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code`;
 
@@ -63,40 +58,42 @@ const getWeather = async (location: string) => {
     windSpeed: data.current.wind_speed_10m,
     windGust: data.current.wind_gusts_10m,
     conditions: getWeatherCondition(data.current.weather_code),
-    location: name,
+    address,
+    latitude,
+    longitude,
   };
 };
 
 function getWeatherCondition(code: number): string {
   const conditions: Record<number, string> = {
-    0: 'Clear sky',
-    1: 'Mainly clear',
-    2: 'Partly cloudy',
-    3: 'Overcast',
-    45: 'Foggy',
-    48: 'Depositing rime fog',
-    51: 'Light drizzle',
-    53: 'Moderate drizzle',
-    55: 'Dense drizzle',
-    56: 'Light freezing drizzle',
-    57: 'Dense freezing drizzle',
-    61: 'Slight rain',
-    63: 'Moderate rain',
-    65: 'Heavy rain',
-    66: 'Light freezing rain',
-    67: 'Heavy freezing rain',
-    71: 'Slight snow fall',
-    73: 'Moderate snow fall',
-    75: 'Heavy snow fall',
-    77: 'Snow grains',
-    80: 'Slight rain showers',
-    81: 'Moderate rain showers',
-    82: 'Violent rain showers',
-    85: 'Slight snow showers',
-    86: 'Heavy snow showers',
-    95: 'Thunderstorm',
-    96: 'Thunderstorm with slight hail',
-    99: 'Thunderstorm with heavy hail',
+    0: '快晴',
+    1: '概ね晴れ',
+    2: '晴れ時々曇り',
+    3: '曇り',
+    45: '霧',
+    48: '着氷性の霧',
+    51: '弱い霧雨',
+    53: 'やや強い霧雨',
+    55: '濃い霧雨',
+    56: '弱い凍結性霧雨',
+    57: '濃い凍結性霧雨',
+    61: '小雨',
+    63: '雨',
+    65: '大雨',
+    66: '弱い凍結性雨',
+    67: '強い凍結性雨',
+    71: '弱い降雪',
+    73: 'やや強い降雪',
+    75: '大雪',
+    77: '雪粒',
+    80: 'にわか小雨',
+    81: 'にわか雨',
+    82: '激しいにわか雨',
+    85: 'にわか雪',
+    86: '激しいにわか雪',
+    95: '雷雨',
+    96: '小さな雹を伴う雷雨',
+    99: '大きな雹を伴う雷雨',
   };
-  return conditions[code] || 'Unknown';
+  return conditions[code] || '不明';
 }
