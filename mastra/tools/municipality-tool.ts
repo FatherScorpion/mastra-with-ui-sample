@@ -18,7 +18,17 @@ export const municipalityTool = createTool({
   },
 });
 
-const getMunicipality = async (location: string) => {
+interface NavitimeGeocodingResponse {
+  items: Array<{
+    coord: { lat: number; lon: number };
+    name: string;
+    details?: Array<{ level?: number | string }>;
+  }>;
+}
+
+const getMunicipality = async (
+  location: string
+): Promise<{ latitude: number; longitude: number; address: string; addressLevel: number }> => {
   const rapidApiKey = process.env.RAPIDAPI_KEY;
   if (!rapidApiKey) {
     throw new Error('RAPIDAPI_KEY environment variable is not set');
@@ -32,18 +42,25 @@ const getMunicipality = async (location: string) => {
     },
   });
 
+  if (!geocodingResponse.ok) {
+    throw new Error(`Geocoding API error: ${geocodingResponse.status} ${geocodingResponse.statusText}`);
+  }
+
   const geocodingData = (await geocodingResponse.json()) as NavitimeGeocodingResponse;
 
-  if (!geocodingData.items?.[0]) {
+  const firstResult = geocodingData.items?.[0];
+  if (!firstResult) {
     throw new Error(`Location '${location}' not found`);
   }
 
-  const firstResult = geocodingData.items[0];
-  const { coord: { lat: latitude, lon: longitude }, name: address } = firstResult;
+  const {
+    coord: { lat: latitude, lon: longitude },
+    name: address,
+  } = firstResult;
 
-  const addressLevel = firstResult.details.length > 0
-    ? Number(firstResult.details[firstResult.details.length - 1].level)
-    : 1;
+  const details = firstResult.details ?? [];
+  const lastLevel = details.length > 0 ? details[details.length - 1].level : 1;
+  const addressLevel = Number(lastLevel ?? 1) || 1;
 
   return {
     latitude,
